@@ -1,0 +1,267 @@
+
+version: "3.9"
+
+
+x-airflow-common-env: &airflow-common-env
+  AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+  AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+  AIRFLOW__CELERY__RESULT_BACKEND: redis://redis:6379/1
+  AIRFLOW__CORE__FERNET_KEY_FILE: /run/secrets/airflow_fernet_key
+  AIRFLOW__WEBSERVER__SECRET_KEY_FILE: /run/secrets/airflow_secret_key
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-32}
+  AIRFLOW__CELERY__WORKER_CONCURRENCY: ${AIRFLOW_WORKER_CONCURRENCY:-4}
+  AIRFLOW__LOG__LOG_RETENTION_DAYS: "90"
+  AIRFLOW__EMAIL__EMAIL_BACKEND: airflow.utils.email.send_email_smtp
+
+x-airflow-common-volumes: &airflow-common-volumes
+  - /opt/data-platform/airflow/dags:/opt/airflow/dags
+  - /opt/data-platform/airflow/logs:/opt/airflow/logs
+  - /opt/data-platform/airflow/plugins:/opt/airflow/plugins
+
+x-airflow-common-secrets: &airflow-common-secrets
+  - airflow_fernet_key
+  - airflow_secret_key
+  - airflow_db_password
+  - airflow_admin_password
+  - airflow_admin_user
+
+services:
+
+  postgres:
+    image: postgres:16.6-alpine3.21
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD_FILE: /run/secrets/airflow_db_password
+      POSTGRES_DB: airflow
+    volumes:
+      - /opt/data-platform/postgres/data:/var/lib/postgresql/data
+    networks:
+      - data-platform-network
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          cpus: "1.0"
+          memory: 4g
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        order: stop-first
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    secrets:
+      - airflow_db_password
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  redis:
+    image: redis:7.4.2-alpine3.21
+    command: redis-server --save "" --appendonly no
+    volumes:
+      - /opt/data-platform/redis/data:/data
+    networks:
+      - data-platform-network
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          cpus: "0.5"
+          memory: 512m
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        order: start-first
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "25m"
+        max-file: "3"
+
+  airflow-init:
+    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    command: >
+      bash -c "
+      airflow db migrate &&
+      airflow users create --username \"$$(cat /run/secrets/airflow_admin_user)\" --password \"$$(cat /run/secrets/airflow_admin_password)\" --firstname Admin --lastname User --role Admin --email admin@example.com || true
+      "
+    environment:
+      <<: *airflow-common-env
+    volumes: *airflow-common-volumes
+    networks:
+      - data-platform-network
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    secrets: *airflow-common-secrets
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  airflow-webserver:
+    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    command: webserver
+    environment:
+      <<: *airflow-common-env
+    ports:
+      - target: 8080
+        published: 8080
+        mode: host
+    volumes: *airflow-common-volumes
+    networks:
+      - data-platform-network
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          cpus: "1.0"
+          memory: 4g
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        order: stop-first
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    secrets: *airflow-common-secrets
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  airflow-scheduler:
+    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    command: scheduler
+    environment:
+      <<: *airflow-common-env
+    volumes: *airflow-common-volumes
+    networks:
+      - data-platform-network
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          cpus: "1.0"
+          memory: 2g
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        order: stop-first
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    secrets: *airflow-common-secrets
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  airflow-worker:
+    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    command: celery worker
+    environment:
+      <<: *airflow-common-env
+    volumes: *airflow-common-volumes
+    networks:
+      - data-platform-network
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          cpus: "2.0"
+          memory: 4g
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        order: stop-first
+    healthcheck:
+      test: ["CMD-SHELL", "celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d \"celery@$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+    secrets: *airflow-common-secrets
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  airflow-triggerer:
+    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    command: triggerer
+    environment:
+      <<: *airflow-common-env
+    volumes: *airflow-common-volumes
+    networks:
+      - data-platform-network
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          cpus: "0.5"
+          memory: 2g
+      restart_policy:
+        condition: any
+      update_config:
+        parallelism: 1
+        order: start-first
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type TriggererJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    secrets: *airflow-common-secrets
+    logging:
+      driver: json-file
+      options:
+        max-size: "25m"
+        max-file: "3"
+
+networks:
+  data-platform-network:
+    external: true
+
+secrets:
+  airflow_fernet_key:
+    external: true
+  airflow_secret_key:
+    external: true
+  airflow_db_password:
+    external: true
+  airflow_admin_password:
+    external: true
+  airflow_admin_user:
+    external: true

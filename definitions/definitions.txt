@@ -1,0 +1,131 @@
+<storage_backend_and_drivers>
+Docker volume driver for MinIO data          : [x] Local bind mount  [] Named volume       [] NFS-backed       [] GlusterFS/Ceph plugin
+MinIO deployment mode                        : [x] SNSD              [] SNMD               [] MNMD
+MinIO erasure coding parity (EC level)       : [] EC:0              [x] EC:2               [] EC:4 
+Airflow metadata DB storage backend          : [x] Local bind mount  [] Named Docker volume [] Dedicated partition
+Log storage backend                          : [x] Local filesystem  [] MinIO (S3 remote)  [] Elasticsearch
+DAG storage backend                          : [] Git-sync sidecar  [x] Shared bind mount  [] MinIO bucket + sync
+</storage_backend_and_drivers>
+
+<database_selection_and_tuning>
+Airflow metadata DB engine                   : [x] PostgreSQL        [] MySQL/MariaDB      [] SQLite (not recommended)
+PostgreSQL deployment mode                   : [x] Containerized     [] Bare metal host    [] With pgBouncer sidecar
+PostgreSQL connection pooling                : [] PgBouncer (transaction) [] PgBouncer (session) [x] No pooler
+PostgreSQL HA strategy                       : [x] Single primary    [] Patroni replica    [] WAL archiving to MinIO
+PostgreSQL max_connections tuning            : [x] Default (100)     [] Tuned to workers   [] Dynamic via pgBouncer
+PostgreSQL shared_buffers tuning             : [x] Default (128MB)   [] 25% of DB RAM      [] 50%+ of DB RAM
+Airflow result backend (Celery)              : [x] Redis             [] PostgreSQL         [] RabbitMQ
+</database_selection_and_tuning>
+
+<executor_type_and_worker_pools>
+Airflow executor selection                   : [] LocalExecutor     [x] CeleryExecutor     [] KubernetesExecutor
+Celery broker selection                      : [x] Redis             [] RabbitMQ           [] Redis with AOF
+Celery worker concurrency model              : [x] Prefork           [] Gevent             [] Eventlet
+Worker autoscaling                           : [] --autoscale       [] Fixed concurrency  [x] Swarm replica scaling
+Task-level resource tagging                  : [] Airflow Pools     [x] Single default pool [] Pool per external system
+DAG concurrency limits                       : [x] Global limit      [] Per-DAG limit      [] No limit
+Airflow scheduler redundancy                 : [x] Single scheduler  [] Dual schedulers (HA)
+</executor_type_and_worker_pools>
+
+<networking_and_service_discovery>
+Docker Swarm network type                    : [x] Overlay           [] Bridge             [] Host
+Service discovery method                     : [x] Docker Swarm DNS  [] Consul             [] Traefik service mesh
+Reverse proxy / ingress                      : [] Traefik           [] Nginx              [] Caddy              [x] None
+MinIO endpoint exposure                      : [] Internal only     [] Via reverse proxy  [x] Direct port binding
+Airflow Webserver exposure                   : [] Behind proxy TLS  [x] Direct port        [] VPN-only
+Inter-service communication encryption       : [] Docker overlay encrypted [x] Plain overlay [] App-layer TLS
+Port conflict management                     : [x] Manual namespacing [] Proxy by hostname
+</networking_and_service_discovery>
+
+<security_and_access_control>
+MinIO access model                           : [x] Root creds only   [] IAM users          [] Service accounts per DAG
+MinIO bucket policy strategy                 : [x] Single bucket     [] Per-pipeline buckets [] Prefix-based policies
+MinIO TLS                                    : [] Self-signed       [] Let's Encrypt       [] Internal CA          [x] No TLS
+Airflow Webserver authentication             : [x] FAB default       [] LDAP/AD             [] OAuth2/OIDC          [] Keycloak
+Airflow secret backend                       : [] Env variables     [] Airflow metastore   [] HashiCorp Vault      [x] Docker Swarm secrets
+Fernet key management                        : [x] Static env var    [] Docker Swarm secret [] Rotation schedule
+MinIO encryption at rest                     : [x] None              [] SSE-S3              [] SSE-KMS
+Docker image security                        : [x] Official only     [] Custom from official base [] Image scanning (Trivy)
+Secrets in Swarm stack                       : [] Env vars in YAML  [x] Docker Swarm secrets [] CI/CD injection
+Network segmentation                         : [x] Single flat overlay [] Tiered overlay networks
+</security_and_access_control>
+
+<log_management>
+Airflow log storage location                 : [x] Local filesystem  [] Remote MinIO (S3)  [] Elasticsearch
+Log retention and auto-cleanup               : [x] airflow db clean DAG [] Logrotate host  [] MinIO lifecycle rules
+airflow db clean scheduling                  : [] Airflow DAG       [] Host cron job     [] None
+Log aggregation                              : [x] None              [] Promtail + Loki    [] Fluentd/Fluent Bit → ES
+Container log driver                         : [x] json-file default [] json-file + rotation [] journald           [] fluentd driver
+MinIO server log verbosity                   : [] INFO              [] ERROR only         [x] AUDIT enabled
+Log-induced disk pressure protection         : [x] Docker log rotation [] Disk alert threshold [] tmpfs for transient logs
+</log_management>
+
+<resource_isolation_and_enforcement>
+Docker resource limits enforcement           : [] Hard limits (--limit) [x] Soft reservations [] No limits
+Memory limit enforcement mode                : [] Hard mem_limit    [x] Soft limit + swap
+Swap configuration                           : [x] Swap enabled      [] Swap disabled      [] Swappiness tuning
+CPU pinning and affinity                     : [x] No pinning        [] cpuset per container [] cgroups v2
+OOM kill behavior                            : [x] Default OOM killer [] oom_score_adj tuning [] Alert on OOM events
+Disk I/O throttling                          : [x] No limits         [] blkio_weight       [] Separate physical disks
+Airflow worker slot limits                   : [x] PARALLELISM global [] MAX_ACTIVE_TASKS_PER_DAG [] Pool-based slots
+</resource_isolation_and_enforcement>
+
+<high_availability_single_node>
+Airflow Webserver HA                         : [x] Single replica    [] Multi-replica + LB [] Multi-replica + Redis sessions
+Airflow Scheduler HA                         : [x] Single scheduler  [] Dual schedulers (Airflow 2.x)
+MinIO HA on single node                      : [x] SNSD              [] SNMD multi-drive   [] Warm standby mirror
+PostgreSQL HA on single node                 : [x] Single + restart  [] Patroni same host  [] WAL-G to MinIO
+Docker Swarm restart policies                : [x] condition: any    [] condition: on-failure + max_attempts [] + health check
+Swarm manager quorum                         : [x] Single manager    [] 3 managers (multi-node)
+Redis HA (Celery)                            : [x] Single Redis      [] Redis Sentinel     [] Redis Cluster
+Service dependency ordering                  : [x] Healthcheck loops [] Restart on unhealthy [] Init containers
+</high_availability_single_node>
+
+<monitoring_and_health_checks>
+Metrics collection stack                     : [] Prometheus + Grafana [] + Alertmanager   [] Datadog agent       [] Netdata        [x] None
+Airflow metrics export                       : [] StatsD → Prometheus [] OpenTelemetry    [x] None
+MinIO metrics export                         : [] Native Prometheus endpoint [x] None
+Docker/Swarm metrics                         : [] cAdvisor          [] Docker stats API   [] Node Exporter [x] None
+Health check endpoints                       : [x] Airflow /health   [x] MinIO /health/live [x] PostgreSQL pg_isready
+Alerting channels                            : [] Email             [] Slack/Teams        [] PagerDuty           [] Grafana alerts [x] None
+Uptime and blackbox monitoring               : [] Blackbox Exporter [] SaaS (UptimeRobot) [x] None
+Dashboard strategy                           : [] Pre-built Grafana [] Custom dashboards  [x] Airflow UI only
+Log-based alerting                           : [] Loki + Grafana    [] ES Watcher         [x] None
+</monitoring_and_health_checks>
+
+<backup_and_disaster_recovery>
+PostgreSQL backup strategy                   : [] pg_dump → local   [] pg_dump → MinIO    [] WAL-G continuous    [] Barman [x] None
+PostgreSQL backup frequency                  : [] Daily full        [] Hourly incremental  [] Continuous WAL [x] None
+MinIO data backup                            : [] mc mirror         [] Restic              [] No backup (cache only) [x] None
+Backup retention policy                      : [] GFS (7d/4w/12m)  [] 30 daily flat       [] MinIO lifecycle rules [x] None
+Backup encryption                            : [] None              [] GPG                 [] Restic built-in [x] None
+Disaster recovery RTO target                 : [] < 1 hour         [] < 4 hours           [] < 24 hours [x] None
+Backup validation                            : [] Monthly restore drill [] Checksum only       [x] None
+Config and secrets backup                    : [] Swarm secrets backup [] Git repo for config [x] None
+</backup_and_disaster_recovery>
+
+<dag_lifecycle_and_cicd>
+DAG deployment strategy                      : [] Git-sync sidecar  [] CI/CD to shared volume [x] Manual bind mount
+DAG versioning                               : [] Git tags          [] File timestamp      [] Airflow serialized DAGs [x] None
+DAG testing before deployment                : [] airflow dags test in CI [] pytest unit tests [x] None
+Broken DAG handling                          : [] Tracebacks in UI  [] Alert on import error [x] None
+DAG rollback strategy                        : [] Git revert        [] .backup file        [] Blue/green folders [x] None
+</dag_lifecycle_and_cicd>
+
+<scalability_and_future_proofing>
+Path to multi-node Swarm                     : [x] Overlay from day 1 [] Bridge now migrate later [] Plan for Kubernetes
+MinIO scale-out path                         : [x] SNSD now migrate later [] SNMD now        [] Federated MinIO
+Airflow executor upgrade path                : [] LocalExecutor now [x] CeleryExecutor from day 1
+Storage volume portability                   : [] Named volumes     [x] Bind mounts
+Configuration management for scale          : [] Env vars in stack [] Consul KV / Vault   [x] .env files per env
+</scalability_and_future_proofing>
+
+<operational_and_maintenance>
+Airflow upgrade strategy                     : [] In-place image update [] Blue/green stack [] Canary [x] None
+MinIO upgrade strategy                       : [] Rolling (MNMD)    [] Full stop           [] Side-by-side + mirror [x] None
+PostgreSQL upgrade strategy                  : [] pg_upgrade in-place [] Dump/restore      [] Logical replication [x] None
+Docker image update cadence                  : [] Pin exact digest  [] Pin major.minor tag [] latest (never in prod) [x] None
+Dependency update management                 : [] Renovate/Dependabot [] Manual review     [x] None
+On-call and runbook documentation            : [] Git wiki          [] Confluence/Notion   [x] None
+Change management process                    : [] Git PRs only      [x] Direct redeploy     [] Maintenance windows
+</operational_and_maintenance>
