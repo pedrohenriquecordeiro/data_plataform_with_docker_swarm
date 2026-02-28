@@ -71,8 +71,8 @@ create_secret_if_missing() {
     log_info "Secret '${secret_name}' created successfully."
   fi
 }
-create_secret_if_missing "minio_root_user" "${MINIO_ROOT_USER}"
-create_secret_if_missing "minio_root_password" "${MINIO_ROOT_PASSWORD}"
+create_secret_if_missing "minio_root_user" "${MINIO_WWW_USERNAME}"
+create_secret_if_missing "minio_root_password" "${MINIO_WWW_PASSWORD}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 2: Deploy the shared overlay network
@@ -115,7 +115,7 @@ max_wait=120
 wait_interval=5
 elapsed=0
 while [[ ${elapsed} -lt ${max_wait} ]]; do
-  if curl -sf "${MINIO_ENDPOINT}/minio/health/live" &>/dev/null; then
+  if curl -sf "${MINIO_HOSTNAME}/minio/health/live" &>/dev/null; then
     log_info "MinIO is healthy and accepting requests."
     break
   fi
@@ -146,18 +146,18 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 7: Configure mc alias for the local MinIO server
 # ─────────────────────────────────────────────────────────────────────────────
-log_info "Step 7: Setting up mc alias '${MC_ALIAS}'..."
-mc alias set "${MC_ALIAS}" "${MINIO_ENDPOINT}" "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}"
-log_info "mc alias '${MC_ALIAS}' configured for ${MINIO_ENDPOINT}"
+log_info "Step 7: Setting up mc alias '${MINIO_CLIENT_NAME}'..."
+mc alias set "${MINIO_CLIENT_NAME}" "${MINIO_HOSTNAME}" "${MINIO_WWW_USERNAME}" "${MINIO_WWW_PASSWORD}"
+log_info "mc alias '${MINIO_CLIENT_NAME}' configured for ${MINIO_HOSTNAME}"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 8: Create the default bucket (idempotent)
 # ─────────────────────────────────────────────────────────────────────────────
 log_info "Step 8: Creating bucket '${BUCKET_NAME}'..."
-if mc ls "${MC_ALIAS}/${BUCKET_NAME}" &>/dev/null; then
+if mc ls "${MINIO_CLIENT_NAME}/${BUCKET_NAME}" &>/dev/null; then
   log_warn "Bucket '${BUCKET_NAME}' already exists. Skipping creation."
 else
-  mc mb "${MC_ALIAS}/${BUCKET_NAME}"
+  mc mb "${MINIO_CLIENT_NAME}/${BUCKET_NAME}"
   log_info "Bucket '${BUCKET_NAME}' created successfully."
 fi
 
@@ -165,7 +165,7 @@ fi
 # Step 9: Set bucket access policy
 # ─────────────────────────────────────────────────────────────────────────────
 log_info "Step 9: Setting access policy on bucket '${BUCKET_NAME}'..."
-mc anonymous set none "${MC_ALIAS}/${BUCKET_NAME}"
+mc anonymous set none "${MINIO_CLIENT_NAME}/${BUCKET_NAME}"
 log_info "Bucket '${BUCKET_NAME}' access policy set to 'none' (private)."
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -174,8 +174,8 @@ log_info "Bucket '${BUCKET_NAME}' access policy set to 'none' (private)."
 log_info "============================================="
 log_info "  MinIO deployment and configuration complete."
 log_info "============================================="
-log_info "  API      : ${MINIO_ENDPOINT}"
-log_info "  Console  : http://localhost:9001"
+log_info "  API      : ${MINIO_HOSTNAME}"
+log_info "  Console  : http://localhost:${MINIO_PORT_CONSOLE}"
 log_info "  Bucket   : ${BUCKET_NAME}"
 log_info "  Policy   : private (root credentials only)"
 log_info "============================================="

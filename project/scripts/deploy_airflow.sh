@@ -92,11 +92,11 @@ create_secret_if_missing() {
 }
 
 # Create all Airflow-related secrets from .env values
-create_secret_if_missing "airflow_fernet_key" "${AIRFLOW_FERNET_KEY}"         # Fernet encryption key
+create_secret_if_missing "airflow_fernet_key" "${AIRFLOW__CORE__FERNET_KEY}"         # Fernet encryption key
 create_secret_if_missing "airflow_secret_key" "${AIRFLOW_SECRET_KEY}"         # Webserver session secret
-create_secret_if_missing "airflow_db_password" "${AIRFLOW_DB_PASSWORD}"       # PostgreSQL password
-create_secret_if_missing "airflow_admin_password" "${AIRFLOW_ADMIN_PASSWORD}" # Initial admin password
-create_secret_if_missing "airflow_admin_user" "${AIRFLOW_ADMIN_USER}"         # Admin username
+create_secret_if_missing "airflow_db_password" "${AIRFLOW_POSTGRES_PASSWORD}"       # PostgreSQL password
+create_secret_if_missing "airflow_admin_password" "${AIRFLOW_WWW_PASSWORD}" # Initial admin password
+create_secret_if_missing "airflow_admin_user" "${AIRFLOW_WWW_USERNAME}"         # Admin username
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 2: Deploy the shared overlay network (if not already deployed)
@@ -156,7 +156,7 @@ log_info "Step 4: Deploying Airflow stack..."
 # Export all .env variables so they're available to docker stack deploy.
 # Docker stack deploy resolves ${VAR} substitutions from the environment.
 export AIRFLOW_IMAGE
-export AIRFLOW_DB_PASSWORD
+export AIRFLOW_POSTGRES_PASSWORD
 export AIRFLOW_PARALLELISM
 export AIRFLOW_WORKER_CONCURRENCY
 
@@ -229,8 +229,8 @@ airflow_exec airflow connections delete minio_default 2>/dev/null || true   # Re
 airflow_exec airflow connections add minio_default \
   --conn-type aws \
   --conn-host "http://minio:9000" \
-  --conn-login "${MINIO_ROOT_USER}" \
-  --conn-password "${MINIO_ROOT_PASSWORD}" \
+  --conn-login "${MINIO_WWW_USERNAME}" \
+  --conn-password "${MINIO_WWW_PASSWORD}" \
   --conn-extra '{"endpoint_url": "http://minio:9000"}'    # MinIO endpoint via Swarm DNS
 log_info "Connection 'minio_default' configured."
 
@@ -244,7 +244,7 @@ airflow_exec airflow connections add postgres_default \
   --conn-port 5432 \
   --conn-schema "airflow" \
   --conn-login "airflow" \
-  --conn-password "${AIRFLOW_DB_PASSWORD}"    # Password from .env
+  --conn-password "${AIRFLOW_POSTGRES_PASSWORD}"    # Password from .env
 log_info "Connection 'postgres_default' configured."
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -258,7 +258,7 @@ log_info "  Webserver  : http://localhost:8080"
 log_info "  Scheduler  : running"
 log_info "  Worker     : running (1 replica)"
 log_info "  Triggerer  : running"
-log_info "  Admin user : ${AIRFLOW_ADMIN_USER}"
+log_info "  Admin user : ${AIRFLOW_WWW_USERNAME}"
 log_info "  Connections: minio_default, postgres_default"
 log_info ""
 log_info "  Next step: run scripts/healthcheck.sh"

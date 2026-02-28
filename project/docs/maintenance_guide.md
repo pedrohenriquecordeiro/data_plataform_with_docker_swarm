@@ -23,9 +23,9 @@ Comprehensive operations and maintenance guide for the MinIO & Airflow data plat
 
 This data platform provides an on-premise data engineering stack running on a single Linux server using Docker Swarm. It consists of:
 
-- **MinIO** — S3-compatible object storage for raw data, processed files, and artifacts
+- **MinIO** — S3-compatible object storage for raw data, processed files and artifacts
 - **Apache Airflow** — Workflow orchestration for scheduling and running data pipelines
-- **PostgreSQL** — Airflow metadata database storing DAG runs, task states, and connections
+- **PostgreSQL** — Airflow metadata database storing DAG runs, task states and connections
 - **Redis** — Celery message broker enabling distributed task execution across Airflow workers
 
 All services communicate over a shared Docker Swarm overlay network (`data-platform-network`) and use Docker Swarm secrets for credential management. Persistent data is stored under `/opt/data-platform/` on the host.
@@ -46,18 +46,18 @@ All services communicate over a shared Docker Swarm overlay network (`data-platf
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              Docker Swarm (Single Manager Node)              │
-│                                                              │
-│  ┌────── data-platform-network (overlay) ──────────────────┐ │
-│  │                                                          │ │
-│  │  MinIO (:9000/:9001)    PostgreSQL (:5432)               │ │
-│  │                                                          │ │
-│  │  Airflow: Webserver (:8080)  |  Scheduler  |  Worker    │ │
-│  │           Triggerer          |  Redis (:6379)            │ │
-│  └──────────────────────────────────────────────────────────┘ │
-│                                                              │
-│  Host Ports: 8080, 9000, 9001                                │
-│  Data: /opt/data-platform/                                   │
+│              Docker Swarm (Single Manager Node)             │
+│                                                             │
+│  ┌────── data-platform-network (overlay) ──────────────────┐│
+│  │                                                         ││
+│  │  MinIO (:9000/:9001)    PostgreSQL (:5432)              ││
+│  │                                                         ││
+│  │  Airflow: Webserver (:8080)  |  Scheduler  |  Worker    ││
+│  │           Triggerer          |  Redis (:6379)           ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                             │
+│  Host Ports: 8080, 9000, 9001                               │
+│  Data: /opt/data-platform/                                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,7 +97,7 @@ Run the global health check script to verify all services:
 bash scripts/healthcheck.sh
 ```
 
-This checks MinIO API, MinIO Console, Airflow Webserver, PostgreSQL, Redis, Scheduler, Worker, and Triggerer — reporting `✅ HEALTHY` or `❌ UNHEALTHY` for each.
+This checks MinIO API, MinIO Console, Airflow Webserver, PostgreSQL, Redis, Scheduler, Worker and Triggerer — reporting `✅ HEALTHY` or `❌ UNHEALTHY` for each.
 
 ### Integration Tests
 
@@ -107,7 +107,7 @@ Run the full integration test suite:
 bash scripts/test_stack.sh
 ```
 
-Tests cover: Swarm status, overlay network, stack deployments, service replicas, endpoint reachability, secrets, host directories, database connectivity, and Redis connectivity.
+Tests cover: Swarm status, overlay network, stack deployments, service replicas, endpoint reachability, secrets, host directories, database connectivity and Redis connectivity.
 
 ### Manual Monitoring Commands
 
@@ -401,7 +401,7 @@ docker node ls
 
 ### Step 3 — Migrate Bind-Mount Volumes to Shared Storage
 
-On a single node, DAGs, logs, and plugins are bind-mounted from the local filesystem. For multi-node, these must be accessible from all nodes.
+On a single node, DAGs, logs and plugins are bind-mounted from the local filesystem. For multi-node, these must be accessible from all nodes.
 
 **Options:**
 
@@ -411,24 +411,30 @@ On a single node, DAGs, logs, and plugins are bind-mounted from the local filesy
 | GlusterFS | Medium | Distributed filesystem; good for multiple nodes |
 | Rook/Ceph | High | Enterprise-grade; overkill for small clusters |
 
-**Migration procedure (NFS example):**
+**Migration procedure (External NFS example):**
 
-1. Set up an NFS server on the manager node:
+1. Configure the **External NFS Server** (managed separately):
 
-```bash
-apt-get install -y nfs-kernel-server
-echo "/opt/data-platform *(rw,sync,no_subtree_check,no_root_squash)" >> /etc/exports
-exportfs -ra
-```
+   - Ensure the NFS server exports the target directory to the on-premise network.
+   - Example configuration in `/etc/exports`:
+     ```text
+     /mnt/shared/data-platform  10.0.0.0/24(rw,sync,no_subtree_check,no_root_squash)
+     ```
+   - Ensure firewall rules allow inbound traffic on port `2049` (NFS).
 
-2. On each worker node, mount the NFS share:
+2. On **all Swarm nodes** (Manager and Workers), mount the external share:
 
-```bash
-apt-get install -y nfs-common
-mkdir -p /opt/data-platform
-mount <MANAGER_IP>:/opt/data-platform /opt/data-platform
-echo "<MANAGER_IP>:/opt/data-platform /opt/data-platform nfs defaults 0 0" >> /etc/fstab
-```
+   ```bash
+   apt-get update && apt-get install -y nfs-common
+   mkdir -p /opt/data-platform
+   
+   # Mount the share (replace <NFS_SERVER_IP> and <EXPORT_PATH>)
+   mount -t nfs <NFS_SERVER_IP>:/mnt/shared/data-platform /opt/data-platform
+   
+   # Add to /etc/fstab for persistence
+   echo "<NFS_SERVER_IP>:/mnt/shared/data-platform /opt/data-platform nfs defaults 0 0" >> /etc/fstab
+   ```
+
 
 ### Step 4 — Scale Worker Replicas
 

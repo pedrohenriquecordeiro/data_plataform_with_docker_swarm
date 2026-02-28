@@ -88,11 +88,11 @@ nano .env
 
 | Variable | Action |
 |----------|--------|
-| `AIRFLOW_FERNET_KEY` | Generate: `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `AIRFLOW__CORE__FERNET_KEY` | Generate: `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `AIRFLOW_SECRET_KEY` | Generate: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"` |
-| `AIRFLOW_DB_PASSWORD` | Set a strong, unique password |
-| `AIRFLOW_ADMIN_PASSWORD` | Set the initial admin password |
-| `MINIO_ROOT_PASSWORD` | Set a strong, unique password (min 8 chars) |
+| `AIRFLOW_POSTGRES_PASSWORD` | Set a strong, unique password |
+| `AIRFLOW_WWW_PASSWORD` | Set the initial admin password |
+| `MINIO_WWW_PASSWORD` | Set a strong, unique password (min 8 chars) |
 | `AIRFLOW_IMAGE` | Set to your registry path after building the image |
 
 ---

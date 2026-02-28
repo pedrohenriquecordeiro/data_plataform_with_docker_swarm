@@ -1,0 +1,1 @@
+Modify the .env file to rename the variables to match the default values.

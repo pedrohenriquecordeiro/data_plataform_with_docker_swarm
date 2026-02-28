@@ -4,7 +4,7 @@ version: "3.9"
 
 x-airflow-common-env: &airflow-common-env
   AIRFLOW__CORE__EXECUTOR: CeleryExecutor
-  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_POSTGRES_PASSWORD}@postgres:5432/airflow
   AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
   AIRFLOW__CELERY__RESULT_BACKEND: redis://redis:6379/1
   AIRFLOW__CORE__FERNET_KEY_FILE: /run/secrets/airflow_fernet_key
@@ -17,9 +17,9 @@ x-airflow-common-env: &airflow-common-env
   AIRFLOW__EMAIL__EMAIL_BACKEND: airflow.utils.email.send_email_smtp
 
 x-airflow-common-volumes: &airflow-common-volumes
-  - /opt/data-platform/airflow/dags:/opt/airflow/dags
-  - /opt/data-platform/airflow/logs:/opt/airflow/logs
-  - /opt/data-platform/airflow/plugins:/opt/airflow/plugins
+  - /opt/data-platform/airflow/dags:/opt/airflow/dags         # bind mount the dags directory
+  - /opt/data-platform/airflow/logs:/opt/airflow/logs         # bind mount the logs directory
+  - /opt/data-platform/airflow/plugins:/opt/airflow/plugins   # bind mount the plugins directory
 
 x-airflow-common-secrets: &airflow-common-secrets
   - airflow_fernet_key
