@@ -1,25 +1,25 @@
-# Teardown Guide
+# Destroy Guide
 
-Complete teardown utility for removing all data platform resources from the server.
+Complete destroy utility for removing all data platform resources from the server.
 
 ## Overview
 
-The `scripts/teardown.sh` script is the reverse of the deployment process — it removes all Docker Swarm stacks, secrets, the overlay network, named volumes, and optionally purges host data directories. Think of it as the equivalent of `terraform destroy` for this platform.
+The `scripts/destroy.sh` script is the reverse of the deployment process — it removes all Docker Swarm stacks, secrets, the overlay network, named volumes and optionally purges host data directories. Think of it as the equivalent of `terraform destroy` for this platform.
 
 ## Usage
 
 ```bash
-# Standard teardown (removes infra, keeps data)
-sudo bash scripts/teardown.sh
+# Standard destroy (removes infra, keeps data)
+make destroy
 
 # Dry-run — preview what would be removed without executing
-sudo bash scripts/teardown.sh --dry-run
+sudo bash scripts/destroy.sh --dry-run
 
-# Full teardown including host data directories
-sudo bash scripts/teardown.sh --purge-data
+# Full destroy including host data directories
+sudo bash scripts/destroy.sh --purge-data
 
 # Dry-run with data purge preview
-sudo bash scripts/teardown.sh --dry-run --purge-data
+sudo bash scripts/destroy.sh --dry-run --purge-data
 ```
 
 ## Flags
@@ -67,7 +67,7 @@ Removes all named Docker volumes with prefixes: `airflow_`, `minio_`, `shared_`.
 
 ### Step 4.5 — Custom Docker Images
 
-Removes the custom Airflow image specified in the `.env` file (`AIRFLOW_IMAGE`). Falls back to `registry.local/data-platform/airflow:2.10.5` if `.env` is not found.
+Removes the custom Airflow image specified in the `.env` file (`AIRFLOW_IMAGE`). Falls back to `local/data-platform-airflow:2.10.5` if `.env` is not found.
 
 ### Step 5 — Host Data Directories (optional, `--purge-data` only)
 
@@ -90,7 +90,7 @@ After completion, the script prints a summary table showing the status of each r
 
 ```
 =============================================
-  Teardown Summary
+  Destroy Summary
 =============================================
   RESOURCE                                 STATUS
   ────────────────────────────────────────  ──────────────────
@@ -107,12 +107,12 @@ Possible statuses: `removed`, `skipped`, `failed`, `dry-run`.
 
 1. **Always dry-run first:**
    ```bash
-   sudo bash scripts/teardown.sh --dry-run
+   sudo bash scripts/destroy.sh --dry-run
    ```
 
 2. **Review the summary**, then execute:
    ```bash
-   sudo bash scripts/teardown.sh
+   make destroy
    ```
 
 3. **Only use `--purge-data`** if you want to completely remove all persistent data and start fresh.

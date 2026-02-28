@@ -1,105 +1,41 @@
-# Data Platform v1.1.0
+# Data Platform
 
-On-premise data platform running **MinIO** (object storage) and **Apache Airflow** (workflow orchestration) on **Docker Swarm**.
-
-## Components
-
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| MinIO | RELEASE.2025-02-07 | S3-compatible object storage |
-| Apache Airflow | 2.10.5 | Workflow orchestration & scheduling |
-| PostgreSQL | 16.6-alpine | Airflow metadata database |
-| Redis | 7.4.2-alpine | Celery message broker |
-
-## Architecture
-
-> The full architecture diagram is maintained as a draw.io file. Open [`docs/architecture.drawio`](docs/architecture.drawio) with [draw.io](https://app.diagrams.net/) or the VS Code draw.io extension.
-
-```
-┌─────────────────────────────────────────────────────────┐
-│              Docker Swarm (Single Manager Node)          │
-│                                                          │
-│  ┌──── data-platform-network (overlay) ───────────────┐ │
-│  │                                                     │ │
-│  │  MinIO (:9000/:9001)   PostgreSQL (:5432)           │ │
-│  │                                                     │ │
-│  │  Airflow: Webserver (:8080) | Scheduler | Worker    │ │
-│  │           Triggerer         | Redis (:6379)         │ │
-│  └─────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
-```
+Welcome to the Data Platform project. This repository contains the complete codebase for an on-premise data platform running **MinIO** (object storage) and **Apache Airflow** (workflow orchestration) on **Docker Swarm**, along with sample data engineering pipelines demonstrating modern data architectures.
 
 ## Project Structure
 
-```
-.
-├── .env.example                 # Environment variable template
-├── airflow/
-│   ├── Dockerfile               # Custom Airflow image
-│   └── stack.airflow.yml        # Airflow stack definition
-├── minio/
-│   └── stack.minio.yml          # MinIO stack definition
-├── scripts/
-│   ├── deploy.sh                # Master deploy (all components)
-│   ├── deploy_airflow.sh        # Airflow deployment & configuration
-│   ├── deploy_minio.sh          # MinIO deployment & configuration
-│   ├── healthcheck.sh           # Service health checks
-│   ├── install_dependencies.sh  # Docker, Swarm, host dirs setup
-│   ├── teardown.sh              # Full platform teardown
-│   └── test_stack.sh            # Integration tests
-├── tests/
-│   └── test_dag_integrity.py    # DAG import validation (pytest)
-└── docs/
-    ├── architecture.md          # Architecture overview
-    ├── deployment_guide.md      # Step-by-step deployment
-    └── maintenance_guide.md     # Operations & maintenance
-```
+The project is divided into two main areas:
 
-## Quick Start
+1. **Infrastructure (`infra/`)**
+   Contains all configuration files and deployment scripts required to provision the self-hosted platform:
+   - **Docker Swarm configurations** for Apache Airflow and MinIO.
+   - **Deployment scripts** to setup host environments, build Airflow images and deploy stacks.
+   - Detailed **documentation** (`infra/docs/`) on architecture, deployment and platform maintenance.
+   - ➜ *For setup instructions, head over to [infra/readme.md](infra/readme.md).*
 
-1. **Install dependencies** (Docker, Swarm, host directories):
-   ```bash
-   sudo bash scripts/install_dependencies.sh
-   ```
+2. **Code (`code/`)**
+   Contains the data engineering codebase, specifically Airflow DAGs that execute within the platform:
+   - Example pipelines such as a 3-layer data framework (Bronze -> Silver -> Gold).
+   - Demonstrations of in-memory data processing using Pandas and S3 integration via MinIO.
+   - ➜ *Explore the DAGs inside [code/dags/](code/dags/).*
 
-2. **Configure environment**:
-   ```bash
-   cp .env.example .env
-   chmod 600 .env
-   nano .env   # Set credentials and image tags
-   ```
+## Overview
 
-3. **Build the Airflow image**:
-   ```bash
-   docker build -t airflow:2.10.5 airflow/
-   ```
+The platform is designed to provide a cohesive data environment with:
+- **Scalable Object Storage:** S3 compatibility through MinIO.
+- **Robust Orchestration:** Scheduling and task orchestration using Apache Airflow (backed by Celery workers, Redis and PostgreSQL).
+- **Extensibility:** A clear separation between infrastructure management and data pipeline engineering, enabling teams to independently update deployment strategies or pipeline code.
 
-4. **Deploy everything**:
-   ```bash
-   sudo bash scripts/deploy.sh
-   ```
+## Getting Started
 
-Or deploy components individually — see the [Deployment Guide](docs/deployment_guide.md).
+To get the platform up and running on your Docker Swarm cluster:
+1. Navigate to the `infra/` folder.
+2. Follow the detailed steps outlined in the [Deployment Guide](infra/docs/deployment_guide.md) to bootstrap the environment.
+3. Once the orchestrator is deployed, Airflow will automatically discover the pipelines maintained inside `code/dags/`.
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](docs/architecture.md) | Component diagram, networking, storage layout |
-| [Deployment Guide](docs/deployment_guide.md) | Full step-by-step deployment instructions |
-| [Maintenance Guide](docs/maintenance_guide.md) | Backups, upgrades, scaling, troubleshooting |
-| [Teardown](docs/teardown.md) | How to remove the entire platform |
-
-## Useful Commands
-
-```bash
-# Check health of all services
-bash scripts/healthcheck.sh
-
-# Run integration tests
-bash scripts/test_stack.sh
-
-# Full teardown (dry-run first)
-sudo bash scripts/teardown.sh --dry-run
-sudo bash scripts/teardown.sh
-```
+- **[Infrastructure Overview & Setup](infra/readme.md)**
+- **[Architecture Details](infra/docs/architecture.md)**
+- **[Deployment Guide](infra/docs/deployment_guide.md)**
+- **[Maintenance & Operations](infra/docs/maintenance_guide.md)**

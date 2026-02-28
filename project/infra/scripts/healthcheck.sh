@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # healthcheck.sh — Global health check script for all data platform services.
-# Polls health endpoints for MinIO, Airflow webserver, PostgreSQL, and Redis.
+# Polls health endpoints for MinIO, Airflow webserver, PostgreSQL and Redis.
 # Reports a summary table with the status of each service.
 # Usage: bash scripts/healthcheck.sh
 

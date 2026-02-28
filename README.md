@@ -1,1 +1,0 @@
-# data_plataform_with_docker_swarm

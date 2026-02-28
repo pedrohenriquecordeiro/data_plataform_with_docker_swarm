@@ -1,7 +1,7 @@
 # Dockerfile — Custom Apache Airflow image for the data platform
 # Extends the official Airflow image with additional Python packages
 # needed for data processing (pandas, polars, duckdb, minio, pyarrow).
-# Build: docker build -t registry.local/data-platform/airflow:2.10.5 .
+# Build: docker build -t local/data-platform-airflow:2.10.5 .
 # TODO(user): push image to registry before deploying the stack
 
 # Base image: official Apache Airflow with Python 3.12

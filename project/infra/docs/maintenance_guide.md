@@ -15,7 +15,7 @@ Comprehensive operations and maintenance guide for the MinIO & Airflow data plat
 - [Troubleshooting](#troubleshooting)
 - [Common Maintenance Tasks](#common-maintenance-tasks)
 - [Disaster Recovery](#disaster-recovery)
-- [Teardown](#teardown)
+- [Destroy](#destroy)
 
 ---
 
@@ -94,7 +94,7 @@ All services communicate over a shared Docker Swarm overlay network (`data-platf
 Run the global health check script to verify all services:
 
 ```bash
-bash scripts/healthcheck.sh
+make status
 ```
 
 This checks MinIO API, MinIO Console, Airflow Webserver, PostgreSQL, Redis, Scheduler, Worker and Triggerer — reporting `✅ HEALTHY` or `❌ UNHEALTHY` for each.
@@ -104,7 +104,7 @@ This checks MinIO API, MinIO Console, Airflow Webserver, PostgreSQL, Redis, Sche
 Run the full integration test suite:
 
 ```bash
-bash scripts/test_stack.sh
+make test
 ```
 
 Tests cover: Swarm status, overlay network, stack deployments, service replicas, endpoint reachability, secrets, host directories, database connectivity and Redis connectivity.
@@ -210,20 +210,19 @@ tar czf /opt/data-platform/backups/config_$(date +%Y%m%d).tar.gz \
 4. **Build and push the new image:**
 
 ```bash
-docker build -t registry.local/data-platform/airflow:<NEW_VERSION> airflow/
-docker push registry.local/data-platform/airflow:<NEW_VERSION>
+docker build -t local/data-platform-airflow:<NEW_VERSION> airflow/
 ```
 
 5. **Update `.env`:**
 
 ```bash
-AIRFLOW_IMAGE=registry.local/data-platform/airflow:<NEW_VERSION>
+AIRFLOW_IMAGE=local/data-platform-airflow:<NEW_VERSION>
 ```
 
 6. **Redeploy the stack:**
 
 ```bash
-sudo bash scripts/deploy_airflow.sh
+make deploy-airflow
 ```
 
 7. **Run database migration:**
@@ -246,7 +245,7 @@ image: minio/minio:<NEW_RELEASE_TAG>
 3. **Redeploy:**
 
 ```bash
-sudo bash scripts/deploy_minio.sh
+make deploy-minio
 ```
 
 ### PostgreSQL Upgrade
@@ -262,7 +261,7 @@ image: postgres:<NEW_VERSION>-alpine<ALPINE_VERSION>
 3. **Redeploy:**
 
 ```bash
-sudo bash scripts/deploy_airflow.sh
+make deploy-airflow
 ```
 
 > **Warning:** Major PostgreSQL version upgrades (e.g., 16→17) require `pg_dump`/`pg_restore` migration. Minor version upgrades within the same major version are in-place safe.
@@ -278,7 +277,7 @@ image: redis:<NEW_VERSION>-alpine<ALPINE_VERSION>
 2. **Redeploy:**
 
 ```bash
-sudo bash scripts/deploy_airflow.sh
+make deploy-airflow
 ```
 
 ---
@@ -384,7 +383,7 @@ docker swarm join --token SWMTKN-1-xxxxxxxx <MANAGER_IP>:2377
 
 On each **new worker node**:
 
-1. Install Docker Engine (run `scripts/install_dependencies.sh` — it will skip Swarm init on worker nodes, so initialize manually using the join command).
+1. Install Docker Engine (run `make install` — it will skip Swarm init on worker nodes, so initialize manually using the join command).
 
 2. Join the Swarm:
 
@@ -479,7 +478,7 @@ docker events --since 10m
 
 **Common causes:**
 - Missing Docker secrets → Run the deploy script to recreate them
-- Missing host directories → Run `scripts/install_dependencies.sh`
+- Missing host directories → Run `make install`
 - Image not found → Build the Airflow image first: `docker build -t <tag> airflow/`
 - Port already in use → Check with `ss -tlnp | grep <port>`
 
@@ -639,7 +638,7 @@ The recovery strategy is based on idempotent redeployment from a known good stat
 
 ```bash
 # 1. Run dependency installer on a new/clean server
-sudo bash scripts/install_dependencies.sh
+make install
 
 # 2. Restore .env configuration
 cp backup/.env .env
@@ -648,7 +647,7 @@ cp backup/.env .env
 docker build -t <AIRFLOW_IMAGE_TAG> airflow/
 
 # 4. Deploy all services
-sudo bash scripts/deploy.sh
+make deploy
 
 # 5. Restore PostgreSQL backup
 POSTGRES_CONTAINER=$(docker ps --filter "name=airflow_postgres" --format '{{.ID}}' | head -1)
@@ -658,22 +657,22 @@ cat backup/airflow_metadata.dump | docker exec -i "${POSTGRES_CONTAINER}" pg_res
 mc mirror backup/minio/ local-minio/init-bucket/
 
 # 7. Verify
-bash scripts/healthcheck.sh
+make status
 ```
 
 ---
 
-## Teardown
+## Destroy
 
-To remove the entire data platform, see the [Teardown Guide](teardown.md).
+To remove the entire data platform, see the [Destroy Guide](destroy.md).
 
 ```bash
 # Preview what will be removed
-sudo bash scripts/teardown.sh --dry-run
+sudo bash scripts/destroy.sh --dry-run
 
-# Execute teardown
-sudo bash scripts/teardown.sh
+# Execute destroy
+make destroy
 
-# Full teardown including data directories
-sudo bash scripts/teardown.sh --purge-data
+# Full destroy including data directories
+sudo bash scripts/destroy.sh --purge-data
 ```

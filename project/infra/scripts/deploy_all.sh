@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # deploy.sh — Master deployment script for the data platform.
 # Orchestrates the full deployment pipeline: dependencies, image build,
-# MinIO and Airflow deployment, health checks, and integration tests.
+# MinIO and Airflow deployment, health checks and integration tests.
 # Usage: sudo bash scripts/deploy.sh
 
 # Exit immediately on error, treat unset variables as errors, fail on pipe errors
@@ -50,9 +50,9 @@ fi
 ENV_FILE="${PROJECT_ROOT}/.env"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
-  log_error ".env file not found at ${ENV_FILE}"
-  log_error "Copy .env.example to .env and fill in values before deploying."
-  exit 1
+  log_info "Creating .env from .env.example..."
+  cp "${PROJECT_ROOT}/.env.example" "${ENV_FILE}"
+  chmod 600 "${ENV_FILE}"
 fi
 
 # shellcheck disable=SC1090
@@ -67,43 +67,31 @@ log_step "Step 1/6: Installing dependencies..."
 bash "${SCRIPT_DIR}/install_dependencies.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 2: Build the custom Airflow image
+# Step 2: Deploy and configure MinIO
 # ─────────────────────────────────────────────────────────────────────────────
 
-log_step "Step 2/6: Building custom Airflow image..."
-
-# Use the AIRFLOW_IMAGE from .env or default
-AIRFLOW_IMAGE_TAG="${AIRFLOW_IMAGE:-airflow:2.10.5}"
-log_info "Building image: ${AIRFLOW_IMAGE_TAG}"
-docker build -t "${AIRFLOW_IMAGE_TAG}" "${PROJECT_ROOT}/airflow/"
-log_info "Airflow image built successfully: ${AIRFLOW_IMAGE_TAG}"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 3: Deploy and configure MinIO
-# ─────────────────────────────────────────────────────────────────────────────
-
-log_step "Step 3/6: Deploying MinIO..."
+log_step "Step 2/5: Deploying MinIO..."
 bash "${SCRIPT_DIR}/deploy_minio.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 4: Deploy and configure Airflow
+# Step 3: Deploy and configure Airflow (includes building image)
 # ─────────────────────────────────────────────────────────────────────────────
 
-log_step "Step 4/6: Deploying Airflow..."
-bash "${SCRIPT_DIR}/deploy_airflow.sh"
+log_step "Step 3/5: Deploying Airflow..."
+make deploy-airflow
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 5: Run health checks
+# Step 4: Run health checks
 # ─────────────────────────────────────────────────────────────────────────────
 
-log_step "Step 5/6: Running health checks..."
+log_step "Step 4/5: Running health checks..."
 bash "${SCRIPT_DIR}/healthcheck.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 6: Run integration tests
+# Step 5: Run integration tests
 # ─────────────────────────────────────────────────────────────────────────────
 
-log_step "Step 6/6: Running integration tests..."
+log_step "Step 5/5: Running integration tests..."
 bash "${SCRIPT_DIR}/test_stack.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────

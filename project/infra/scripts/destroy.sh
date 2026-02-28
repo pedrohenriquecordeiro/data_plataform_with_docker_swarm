@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# teardown.sh — Full teardown utility for the data platform.
-# Removes all Swarm stacks, secrets, the overlay network, and named volumes.
+# destroy.sh — Full destroy utility for the data platform.
+# Removes all Swarm stacks, secrets, the overlay network and named volumes.
 # Analogous to 'terraform destroy' — reverses everything created by the deploy scripts.
 # Supports: --dry-run (print actions without executing) and --purge-data (delete host data dirs).
-# Usage: sudo bash scripts/teardown.sh [--dry-run] [--purge-data]
+# Usage: sudo bash scripts/destroy.sh [--dry-run] [--purge-data]
 
 # Exit immediately on error, treat unset variables as errors, fail on pipe errors
 set -euo pipefail
@@ -261,7 +261,7 @@ if [[ -f "${ENV_FILE}" ]]; then
   AIRFLOW_IMAGE=$(grep -E "^AIRFLOW_IMAGE=" "${ENV_FILE}" | cut -d '=' -f2 | tr -d '"'\'' ' | tail -n 1 || echo "")
 fi
 
-AIRFLOW_IMAGE_TO_REMOVE="${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}"
+AIRFLOW_IMAGE_TO_REMOVE="${AIRFLOW_IMAGE:-local/data-platform-airflow:2.10.5}"
 
 # Check if the image exists locally
 if docker image inspect "${AIRFLOW_IMAGE_TO_REMOVE}" &>/dev/null; then
@@ -365,7 +365,7 @@ echo ""
 # Inform the user about dry-run limitation
 if [[ "${DRY_RUN}" == "true" ]]; then
   log_info "DRY-RUN complete. No changes were made."
-  log_info "Remove --dry-run to execute the teardown."
+  log_info "Remove --dry-run to execute the destruction."
 fi
 
-log_info "Teardown complete."
+log_info "Destroy complete."

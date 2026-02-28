@@ -38,7 +38,7 @@ The DAG must implement the following 3 tasks using `PythonOperator` and `S3Hook`
 - **Cleanup**: Ensure temporary local files (if any) are cleaned up or use `io.BytesIO`/`io.StringIO` to avoid local storage dependencies.
 
 # Coding Rules
-1.  **Modularity**: Keep the code simple, clear, and well-structured.
+1.  **Modularity**: Keep the code simple, clear and well-structured.
 2.  **Documentation**: Include a clear DAG docstring and type hints for all functions.
 3.  **Error Handling**: Basic checks for connection/bucket existence are encouraged.
 4.  **Aesthetics**: Use modern Airflow patterns (e.g., `@dag` decorator or standard constructor).

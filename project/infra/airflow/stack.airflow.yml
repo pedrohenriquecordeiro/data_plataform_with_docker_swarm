@@ -96,7 +96,7 @@ services:
         max-file: "3"
 
   airflow-init:
-    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    image: ${AIRFLOW_IMAGE:-local/data-platform-airflow:2.10.5}
     command: >
       bash -c "
       airflow db migrate &&
@@ -119,7 +119,7 @@ services:
         max-file: "3"
 
   airflow-webserver:
-    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    image: ${AIRFLOW_IMAGE:-local/data-platform-airflow:2.10.5}
     command: webserver
     environment:
       <<: *airflow-common-env
@@ -155,7 +155,7 @@ services:
         max-file: "5"
 
   airflow-scheduler:
-    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    image: ${AIRFLOW_IMAGE:-local/data-platform-airflow:2.10.5}
     command: scheduler
     environment:
       <<: *airflow-common-env
@@ -187,7 +187,7 @@ services:
         max-file: "5"
 
   airflow-worker:
-    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    image: ${AIRFLOW_IMAGE:-local/data-platform-airflow:2.10.5}
     command: celery worker
     environment:
       <<: *airflow-common-env
@@ -219,7 +219,7 @@ services:
         max-file: "5"
 
   airflow-triggerer:
-    image: ${AIRFLOW_IMAGE:-registry.local/data-platform/airflow:2.10.5}
+    image: ${AIRFLOW_IMAGE:-local/data-platform-airflow:2.10.5}
     command: triggerer
     environment:
       <<: *airflow-common-env

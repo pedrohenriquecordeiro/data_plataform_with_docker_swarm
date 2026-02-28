@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install_dependencies.sh — Check and install all required dependencies on the server.
-# This script verifies that Docker, Docker Compose plugin, and Docker Swarm are
+# This script verifies that Docker, Docker Compose plugin and Docker Swarm are
 # available. If a dependency is missing, it attempts to install it automatically.
 # Supports Debian/Ubuntu-based Linux distributions.
 # Usage: sudo bash scripts/install_dependencies.sh
@@ -114,7 +114,7 @@ else
   # Update package index again to include Docker packages
   apt-get update -y
 
-  # Install Docker Engine, CLI, containerd, and the Compose plugin
+  # Install Docker Engine, CLI, containerd and the Compose plugin
   apt-get install -y \
     docker-ce \
     docker-ce-cli \

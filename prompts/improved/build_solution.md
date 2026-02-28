@@ -8,7 +8,7 @@
 
 ## SECTION 1 — OBJECTIVE
 
-Generate a complete, modular, and production-ready solution to deploy and configure **MinIO** (object storage) and **Apache Airflow** (workflow orchestration) on an on-premise Linux server using **Docker Swarm**.
+Generate a complete, modular and production-ready solution to deploy and configure **MinIO** (object storage) and **Apache Airflow** (workflow orchestration) on an on-premise Linux server using **Docker Swarm**.
 
 The solution must be:
 - **Complete** — all required files must be generated with no unresolved architectural placeholders. User-action TODOs (values that only the operator can supply, e.g. a registry address) are permitted and must be explicitly marked `# TODO(user): <description>`.
@@ -81,7 +81,7 @@ Every file generated must follow these principles to ensure that adding a second
 - **No hardcoded node constraints** — do not pin services to a specific node hostname via `deploy.placement.constraints: [node.hostname == ...]`. If placement constraints are needed, use role-based constraints (`node.role == manager`) only.
 - **Stateless workers** — Airflow workers must carry no local state beyond the current task. Log and DAG paths are bind-mounted from the manager node; on multi-node, this must be replaced by shared storage (documented in the runbook as the scale-out path — do not implement now).
 - **Image registry reference** — all custom images (e.g., `airflow/Dockerfile`) must be built and pushed to a registry before `docker stack deploy`. The stack file must reference the registry image tag (e.g., `registry.local/data-platform/airflow:2.10.5`), not a local build context. Include a `# TODO(user): push image to registry` note and document the build+push step in `docs/deployment_guide.md`.
-- **Document the scale-out path** — `docs/operations_runbook.md` must include a dedicated "Scaling to Multi-Node" section covering: joining new worker nodes, migrating bind-mount volumes to shared storage, and promoting worker replicas.
+- **Document the scale-out path** — `docs/operations_runbook.md` must include a dedicated "Scaling to Multi-Node" section covering: joining new worker nodes, migrating bind-mount volumes to shared storage and promoting worker replicas.
 
 ---
 
@@ -101,12 +101,12 @@ Generate exactly the following files, organized by the folder structure defined 
 ### 3.2 · Automation Scripts
 | File | Description |
 |------|-------------|
-| `minio/scripts/deploy_minio.sh` | Idempotent shell script to create Swarm secrets, deploy, and initialize MinIO |
-| `airflow/scripts/deploy_airflow.sh` | Idempotent shell script to create Swarm secrets, deploy, and initialize Airflow |
+| `minio/scripts/deploy_minio.sh` | Idempotent shell script to create Swarm secrets, deploy and initialize MinIO |
+| `airflow/scripts/deploy_airflow.sh` | Idempotent shell script to create Swarm secrets, deploy and initialize Airflow |
 | `minio/scripts/configure_minio.sh` | Post-deploy script: creates buckets, sets access policy via `mc` |
 | `airflow/scripts/configure_airflow.sh` | Post-deploy script: initializes DB, creates admin user, sets Airflow connections |
 | `scripts/healthcheck.sh` | Polls all service health endpoints and reports status |
-| `scripts/teardown.sh` | Idempotent teardown utility (analogous to `terraform destroy`): removes all Swarm stacks, Swarm secrets, the overlay network, named volumes, and optionally purges host data directories under `/opt/data-plataform`. Safe to run multiple times. Requires explicit confirmation before destructive steps. |
+| `scripts/teardown.sh` | Idempotent teardown utility (analogous to `terraform destroy`): removes all Swarm stacks, Swarm secrets, the overlay network, named volumes and optionally purges host data directories under `/opt/data-plataform`. Safe to run multiple times. Requires explicit confirmation before destructive steps. |
 
 ### 3.3 · Tests
 | File | Description |
@@ -197,7 +197,7 @@ Mounted inside the container at `/run/secrets/minio_root_user` and `/run/secrets
 
 **Dockerfile requirements:**
 - Use `--constraint` flag pinned to Airflow's official constraints file for version `2.10.5` / Python `3.12`.
-- Add a `LABEL` with `maintainer`, `version`, and `build-date`.
+- Add a `LABEL` with `maintainer`, `version` and `build-date`.
 - Set:
     ENV AIRFLOW__CORE__TEST_CONNECTION=Enabled
     ENV AIRFLOW__WEBSERVER__DAG_ORIENTATION=TB
@@ -279,7 +279,7 @@ Every Airflow container must define a Docker `HEALTHCHECK` directive in the stac
 | `airflow_db_password` | PostgreSQL password for Airflow user |
 | `airflow_admin_password` | Initial admin user password |
 
-Secrets are mounted at `/run/secrets/<name>` inside the container. Airflow must be configured to read these via `AIRFLOW__CORE__FERNET_KEY_FILE`, `AIRFLOW__WEBSERVER__SECRET_KEY_FILE`, and equivalent file-based env vars, or via an entrypoint init script that exports them as environment variables.
+Secrets are mounted at `/run/secrets/<name>` inside the container. Airflow must be configured to read these via `AIRFLOW__CORE__FERNET_KEY_FILE`, `AIRFLOW__WEBSERVER__SECRET_KEY_FILE` and equivalent file-based env vars, or via an entrypoint init script that exports them as environment variables.
 
 ---
 
@@ -433,7 +433,7 @@ The following skills define **how** the LLM must approach generation tasks. Appl
 - **Shebang:** Always `#!/usr/bin/env bash`.
 - **Strict mode:** Every script must begin with `set -euo pipefail`.
 - **Idempotency:** Scripts must be safely re-runnable; use existence checks before creating resources (e.g., `docker secret ls` before `docker secret create`, `docker network ls` before `docker network create`).
-- **Logging:** Use a `log_info`, `log_warn`, and `log_error` helper function at the top of every script.
+- **Logging:** Use a `log_info`, `log_warn` and `log_error` helper function at the top of every script.
 - **Exit codes:** Non-zero exit codes must be used on failure; critical failures must print a descriptive message before exiting.
 - **Variable quoting:** All variable expansions must be double-quoted (`"$variable"`).
 - **No global side effects:** Scripts must not modify system-level configurations outside the `/opt/data-plataform` tree and Docker/Swarm resources.
@@ -481,7 +481,7 @@ This script is the authoritative destroy utility for the entire solution. Apply 
 
 ### SKILL — Documentation Authoring
 - **Format:** GitHub-Flavored Markdown.
-- **Structure:** Every document must have a title (`# H1`), a brief description, and a table of contents.
+- **Structure:** Every document must have a title (`# H1`), a brief description and a table of contents.
 - **Commands:** All shell commands must be wrapped in fenced code blocks with the `bash` language tag.
 - **Prerequisites section:** Every runbook/guide must list required tools and minimum versions.
 - **Step numbering:** Use ordered lists; every step must be atomic (one action per step).

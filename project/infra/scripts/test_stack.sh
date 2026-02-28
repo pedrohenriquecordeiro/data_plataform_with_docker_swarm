@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # test_stack.sh — Manual integration test suite for the data platform.
 # Validates that all Docker Swarm services (MinIO and Airflow) are deployed,
-# reachable, and correctly configured. Run AFTER deploying and configuring both stacks.
+# reachable and correctly configured. Run AFTER deploying and configuring both stacks.
 # Usage: bash scripts/test_stack.sh
 
 # Exit immediately on error, treat unset variables as errors, fail on pipe errors

@@ -42,11 +42,11 @@ Before starting, ensure you have:
 
 ## Step 1 — Install Dependencies
 
-Run the dependency installer script. This will install Docker Engine, the Compose plugin, initialize Docker Swarm, and create all host data directories.
+Run the dependency installer script. This will install Docker Engine, the Compose plugin, initialize Docker Swarm and create all host data directories.
 
 ```bash
 # Run the dependency installer (requires root)
-sudo bash scripts/install_dependencies.sh
+make install
 ```
 
 The script will:
@@ -95,6 +95,8 @@ nano .env
 | `MINIO_WWW_PASSWORD` | Set a strong, unique password (min 8 chars) |
 | `AIRFLOW_IMAGE` | Set to your registry path after building the image |
 
+> **Note**: This step is handled **automatically** by the `make deploy` or `make all` process using default credentials if not done manually beforehand. Ensure you update `.env` for production workloads!
+
 ---
 
 ## Step 3 — Build the Custom Airflow Image
@@ -102,21 +104,13 @@ nano .env
 Build the custom Airflow image with the additional Python packages:
 
 ```bash
-# Build the image (run from the project root)
-# TODO(user): replace with your actual registry address
-docker build -t registry.local/data-platform/airflow:2.10.5 airflow/
-
-# Push to your container registry (only needed for multi-node deployments)
-# docker push registry.local/data-platform/airflow:2.10.5
+# Build the image automatically (run from the project root)
+make build-airflow
 ```
 
-Update the `AIRFLOW_IMAGE` variable in `.env` with the tag used above:
+This will build `local/data-platform-airflow:2.10.5` by default, or the image tagged in `AIRFLOW_IMAGE` in your `.env`.
 
-```bash
-AIRFLOW_IMAGE=registry.local/data-platform/airflow:2.10.5
-```
-
-> **Note (single-node):** On a single-node Swarm, the image only needs to be built locally — no registry push required. `docker stack deploy` will use the locally built image directly.
+> **Note (Post-deploy):** After a successful Airflow deployment, the locally built image is automatically deleted from the server to save space. Be prepared to rebuild it if you plan to spin down and up again.
 
 ---
 
@@ -125,7 +119,7 @@ AIRFLOW_IMAGE=registry.local/data-platform/airflow:2.10.5
 Run the MinIO deployment script:
 
 ```bash
-sudo bash scripts/deploy_minio.sh
+make deploy-minio
 ```
 
 This script will:
@@ -157,13 +151,13 @@ This script will:
 Run the Airflow deployment script:
 
 ```bash
-sudo bash scripts/deploy_airflow.sh
+make deploy-airflow
 ```
 
 This script will:
 1. Create Swarm secrets (fernet key, webserver secret, DB password, admin credentials)
 2. Ensure the `data-platform-network` overlay network exists (skips if already created by MinIO deploy)
-3. Create host data directories for Airflow, PostgreSQL, and Redis
+3. Create host data directories for Airflow, PostgreSQL and Redis
 4. Deploy the Airflow stack (webserver, scheduler, worker, triggerer, postgres, redis)
 5. Wait for the webserver to become healthy
 6. Configure the `minio_default` connection (S3-compatible)
@@ -189,7 +183,7 @@ This script will:
 ### 6.1 — Run the health check
 
 ```bash
-bash scripts/healthcheck.sh
+make status
 ```
 
 All services should show `✅ HEALTHY`.
@@ -197,7 +191,7 @@ All services should show `✅ HEALTHY`.
 ### 6.2 — Run integration tests
 
 ```bash
-bash scripts/test_stack.sh
+make test
 ```
 
 All tests should show `[PASS]`.
@@ -277,11 +271,20 @@ docker network inspect data-platform-network
 
 ## Deployment Order Summary
 
+You can run the entire process in one go using the "all" method, or perform a direct component deployment manually:
+
+### Option A: Comprehensive Deployment (All-in-one)
+
 ```
-1. scripts/install_dependencies.sh      → Docker, Swarm, host dirs
-2. Configure .env                       → Credentials, image tags
-3. docker build                         → Custom Airflow image
-4. scripts/deploy_minio.sh        → Secrets + network + stack + buckets + policy
-5. scripts/deploy_airflow.sh    → Secrets + Airflow stack + DB + connections
-6. scripts/healthcheck.sh               → Verify all services
+1. make all       → Runs install, deploy and status. It will build images and spin up everything sequentially.
+```
+
+### Option B: Direct Component Deployment
+
+```
+1. make install       → Docker, Swarm, host dirs
+2. Configure .env     → Credentials (can be auto-generated later as well)
+3. make deploy-minio  → Secrets + network + stack + buckets + policy
+4. make deploy-airflow→ Custom Airflow image + Secrets + Airflow stack + DB + connections
+5. make status        → Verify all services
 ```

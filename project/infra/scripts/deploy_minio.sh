@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# deploy_airflow.sh — Idempotent deployment script for the Airflow stack.
-# Creates Docker Swarm secrets, ensures host directories exist, deploys the
-# shared overlay network (if not present), deploys the Airflow stack, and
-# configures Airflow connections.
-# Usage: sudo bash scripts/deploy_airflow.sh
+# deploy_minio.sh — Idempotent deployment and configuration script for the MinIO stack.
+# Creates Docker Swarm secrets, deploys the shared overlay network, deploys the MinIO
+# stack, waits for it to be healthy and configures the initial buckets and policies.
+# Usage: sudo bash scripts/deploy_minio.sh
 
 # Exit immediately on error, treat unset variables as errors, fail on pipe errors
 set -euo pipefail
@@ -17,35 +16,31 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"               # Project root (dat
 # ─────────────────────────────────────────────────────────────────────────────
 # Logging helpers — consistent output format for all messages
 # ─────────────────────────────────────────────────────────────────────────────
-
-# Print an informational message with timestamp
 log_info() {
   echo "[INFO]  $(date '+%Y-%m-%d %H:%M:%S') — $*"
 }
 
-# Print a warning message with timestamp
 log_warn() {
   echo "[WARN]  $(date '+%Y-%m-%d %H:%M:%S') — $*"
 }
 
-# Print an error message with timestamp to stderr
 log_error() {
   echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') — $*" >&2
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Configuration variables
+# ─────────────────────────────────────────────────────────────────────────────
+ENV_FILE="${PROJECT_ROOT}/.env"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Pre-flight: Verify Docker Swarm is active
 # ─────────────────────────────────────────────────────────────────────────────
-
 log_info "Checking Docker Swarm status..."
-
-# Query the local Swarm state — must be 'active' to deploy stacks
 swarm_state=$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || echo "unknown")
 if [[ "${swarm_state}" != "active" ]]; then
   log_error "Docker Swarm is not active (state: ${swarm_state})."
   log_error "Initialize Swarm first: docker swarm init"
-  # TODO(user): if the node has multiple network interfaces, run:
-  #   docker swarm init --advertise-addr <INTERFACE>
   exit 1
 fi
 log_info "Docker Swarm is active."
@@ -53,18 +48,11 @@ log_info "Docker Swarm is active."
 # ─────────────────────────────────────────────────────────────────────────────
 # Load environment variables from .env file
 # ─────────────────────────────────────────────────────────────────────────────
-
-# Path to the .env file containing configuration and secret values
-ENV_FILE="${PROJECT_ROOT}/.env"
-
-# Verify .env file exists
 if [[ ! -f "${ENV_FILE}" ]]; then
   log_error ".env file not found at ${ENV_FILE}"
   log_error "Copy .env.example to .env and fill in values before deploying."
   exit 1
 fi
-
-# Source the .env file to load all variables
 # shellcheck disable=SC1090
 source "${ENV_FILE}"
 log_info "Loaded environment variables from ${ENV_FILE}"
@@ -72,45 +60,27 @@ log_info "Loaded environment variables from ${ENV_FILE}"
 # ─────────────────────────────────────────────────────────────────────────────
 # Step 1: Create Docker Swarm secrets (idempotent)
 # ─────────────────────────────────────────────────────────────────────────────
-
-log_info "Step 1: Creating Airflow Docker Swarm secrets..."
-
-# Helper function to create a Swarm secret idempotently.
-# Checks existence before creating to avoid errors on re-runs.
+log_info "Step 1: Creating MinIO Docker Swarm secrets..."
 create_secret_if_missing() {
-  local secret_name="$1"    # Name of the Swarm secret
-  local secret_value="$2"   # Plaintext value to store
-
-  # Check if the secret already exists in Docker Swarm
+  local secret_name="$1"
+  local secret_value="$2"
   if docker secret inspect "${secret_name}" &>/dev/null; then
     log_warn "Secret '${secret_name}' already exists. Skipping creation."
   else
-    # Create the secret by piping the value to docker secret create
     echo -n "${secret_value}" | docker secret create "${secret_name}" -
     log_info "Secret '${secret_name}' created successfully."
   fi
 }
-
-# Create all Airflow-related secrets from .env values
-create_secret_if_missing "airflow_fernet_key" "${AIRFLOW__CORE__FERNET_KEY}"         # Fernet encryption key
-create_secret_if_missing "airflow_secret_key" "${AIRFLOW_SECRET_KEY}"         # Webserver session secret
-create_secret_if_missing "airflow_db_password" "${AIRFLOW_POSTGRES_PASSWORD}"       # PostgreSQL password
-create_secret_if_missing "airflow_admin_password" "${AIRFLOW_WWW_PASSWORD}" # Initial admin password
-create_secret_if_missing "airflow_admin_user" "${AIRFLOW_WWW_USERNAME}"         # Admin username
+create_secret_if_missing "minio_root_user" "${MINIO_WWW_USERNAME}"
+create_secret_if_missing "minio_root_password" "${MINIO_WWW_PASSWORD}"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 2: Deploy the shared overlay network (if not already deployed)
+# Step 2: Deploy the shared overlay network
 # ─────────────────────────────────────────────────────────────────────────────
-
 log_info "Step 2: Ensuring shared overlay network exists..."
-
-# Docker Swarm only creates overlay networks when a service that references them is scheduled.
-# A stack with only a 'networks:' block and no services will NOT create the network.
-# The correct approach is to create the network directly via 'docker network create'.
 if docker network ls --format '{{.Name}}' | grep -q "^data-platform-network$"; then
   log_info "Overlay network 'data-platform-network' already exists. Skipping."
 else
-  # Create the attachable overlay network — used by all service stacks
   docker network create \
     --driver overlay \
     --attachable \
@@ -120,146 +90,92 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 3: Create host data directories for Airflow and its dependencies
+# Step 3: Create MinIO host data directory
 # ─────────────────────────────────────────────────────────────────────────────
+log_info "Step 3: Ensuring MinIO data directory exists..."
+mkdir -p /opt/data-platform/minio/data
 
-log_info "Step 3: Ensuring host data directories exist..."
+# Ensure MinIO container can write to its directory (MinIO often runs as 1000 or root)
+chown -R 1000:1000 /opt/data-platform/minio || chmod -R 777 /opt/data-platform/minio
 
-# Create all directories needed by Airflow and its dependency services.
-# -p flag makes these calls idempotent (no error if directory exists).
-mkdir -p /opt/data-platform/airflow/dags       # Airflow DAG files
-mkdir -p /opt/data-platform/airflow/logs       # Airflow task logs
-mkdir -p /opt/data-platform/airflow/plugins    # Airflow plugins
-mkdir -p /opt/data-platform/airflow/config     # Airflow config files
-mkdir -p /opt/data-platform/postgres/data      # PostgreSQL data directory
-mkdir -p /opt/data-platform/redis/data         # Redis data directory
-
-# Set appropriate ownership for container users
-# Airflow image uses UID 50000 (airflow)
-chown -R 50000:0 /opt/data-platform/airflow
-# Postgres alpine image uses UID 70 (postgres)
-chown -R 70:70 /opt/data-platform/postgres
-# Redis alpine image uses UID 999 (redis)
-chown -R 999:1000 /opt/data-platform/redis || chown -R 999:999 /opt/data-platform/redis || chmod -R 777 /opt/data-platform/redis
-
-chmod -R 775 /opt/data-platform/airflow
-chmod -R 775 /opt/data-platform/postgres
-
-log_info "Host data directories created/verified."
+log_info "MinIO data directory ready: /opt/data-platform/minio/data"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 4: Deploy the Airflow stack
+# Step 4: Deploy the MinIO stack
 # ─────────────────────────────────────────────────────────────────────────────
-
-log_info "Step 4: Deploying Airflow stack..."
-
-# Export all .env variables so they're available to docker stack deploy.
-# Docker stack deploy resolves ${VAR} substitutions from the environment.
-export AIRFLOW_IMAGE
-export AIRFLOW_POSTGRES_PASSWORD
-export AIRFLOW_PARALLELISM
-export AIRFLOW_WORKER_CONCURRENCY
-
-# Deploy the Airflow stack — idempotent: re-running updates the stack.
-docker stack deploy -c "${PROJECT_ROOT}/airflow/stack.airflow.yml" airflow
-log_info "Airflow stack deployed successfully."
+log_info "Step 4: Deploying MinIO stack..."
+docker stack deploy -c "${PROJECT_ROOT}/minio/stack.minio.yml" minio
+log_info "MinIO stack deployed successfully."
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 5: Wait for Airflow webserver to become healthy
+# Step 5: Wait for MinIO to become healthy
 # ─────────────────────────────────────────────────────────────────────────────
-
-log_info "Step 5: Waiting for Airflow webserver to become healthy..."
-
-# Maximum time to wait for the webserver health endpoint
-max_wait=180        # Total timeout in seconds (webserver takes longer to start)
-wait_interval=10    # Seconds between health check polls
-elapsed=0           # Elapsed time counter
-
-# Poll the Airflow health endpoint until it responds
+log_info "Step 5: Waiting for MinIO to become healthy..."
+max_wait=120
+wait_interval=5
+elapsed=0
 while [[ ${elapsed} -lt ${max_wait} ]]; do
-  if curl -sf http://127.0.0.1:8080/health &>/dev/null; then
-    log_info "Airflow webserver is healthy and accepting requests."
+  if curl -sf "${MINIO_HOSTNAME}/minio/health/live" &>/dev/null; then
+    log_info "MinIO is healthy and accepting requests."
     break
   fi
-  # Webserver not ready — wait and retry
-  log_info "Webserver not ready (${elapsed}s elapsed). Retrying in ${wait_interval}s..."
+  log_info "MinIO not ready yet (${elapsed}s elapsed). Retrying in ${wait_interval}s..."
   sleep "${wait_interval}"
   elapsed=$((elapsed + wait_interval))
 done
 
-# Check if we timed out waiting for the webserver
 if [[ ${elapsed} -ge ${max_wait} ]]; then
-  log_error "Airflow webserver did not become healthy within ${max_wait} seconds."
-  log_error "Check service logs: docker service logs airflow_airflow-webserver"
+  log_error "MinIO did not become healthy within ${max_wait} seconds."
+  log_error "Check service logs: docker service logs minio_minio"
   exit 1
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helper: Execute a command inside the running Airflow webserver container
+# Step 6: Ensure MinIO Client (mc) is available
 # ─────────────────────────────────────────────────────────────────────────────
-
-# Runs a command inside the airflow-webserver service container.
-# Uses docker exec on the first running task of the service.
-airflow_exec() {
-  # Find the container ID of the first running airflow-webserver task
-  local container_id
-  container_id=$(docker ps --filter "name=airflow_airflow-webserver" --format '{{.ID}}' | head -1)
-
-  # Verify that a running container was found
-  if [[ -z "${container_id}" ]]; then
-    log_error "No running airflow-webserver container found."
-    exit 1
-  fi
-
-  # Execute the provided command inside the container
-  docker exec "${container_id}" "$@"
-}
+log_info "Step 6: Checking for MinIO Client (mc)..."
+if command -v mc &>/dev/null; then
+  log_info "MinIO Client (mc) found: $(mc --version 2>/dev/null | head -1)"
+else
+  log_info "MinIO Client (mc) not found. Downloading..."
+  curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc
+  chmod +x /usr/local/bin/mc
+  log_info "MinIO Client installed at /usr/local/bin/mc"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step 6: Configure Airflow connections
+# Step 7: Configure mc alias for the local MinIO server
 # ─────────────────────────────────────────────────────────────────────────────
-
-log_info "Step 6: Configuring Airflow connections..."
-
-# --- MinIO connection (S3-compatible via AWS provider) ---
-# Uses Swarm DNS name 'minio' for internal communication over the overlay network.
-# Do NOT use the external host IP for this connection.
-log_info "Setting up 'minio_default' connection..."
-airflow_exec airflow connections delete minio_default 2>/dev/null || true   # Remove existing (if any)
-airflow_exec airflow connections add minio_default \
-  --conn-type aws \
-  --conn-host "http://minio:9000" \
-  --conn-login "${MINIO_WWW_USERNAME}" \
-  --conn-password "${MINIO_WWW_PASSWORD}" \
-  --conn-extra '{"endpoint_url": "http://minio:9000"}'    # MinIO endpoint via Swarm DNS
-log_info "Connection 'minio_default' configured."
-
-# --- PostgreSQL metadata connection ---
-# Uses Swarm DNS name 'postgres' for internal communication.
-log_info "Setting up 'postgres_default' connection..."
-airflow_exec airflow connections delete postgres_default 2>/dev/null || true   # Remove existing (if any)
-airflow_exec airflow connections add postgres_default \
-  --conn-type postgres \
-  --conn-host "postgres" \
-  --conn-port 5432 \
-  --conn-schema "airflow" \
-  --conn-login "airflow" \
-  --conn-password "${AIRFLOW_POSTGRES_PASSWORD}"    # Password from .env
-log_info "Connection 'postgres_default' configured."
+log_info "Step 7: Setting up mc alias '${MINIO_CLIENT_NAME}'..."
+mc alias set "${MINIO_CLIENT_NAME}" "${MINIO_HOSTNAME}" "${MINIO_WWW_USERNAME}" "${MINIO_WWW_PASSWORD}"
+log_info "mc alias '${MINIO_CLIENT_NAME}' configured for ${MINIO_HOSTNAME}"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Deployment complete
+# Step 8: Create the default bucket (idempotent)
 # ─────────────────────────────────────────────────────────────────────────────
+log_info "Step 8: Creating bucket '${BUCKET_NAME}'..."
+if mc ls "${MINIO_CLIENT_NAME}/${BUCKET_NAME}" &>/dev/null; then
+  log_warn "Bucket '${BUCKET_NAME}' already exists. Skipping creation."
+else
+  mc mb "${MINIO_CLIENT_NAME}/${BUCKET_NAME}"
+  log_info "Bucket '${BUCKET_NAME}' created successfully."
+fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 9: Set bucket access policy
+# ─────────────────────────────────────────────────────────────────────────────
+log_info "Step 9: Setting access policy on bucket '${BUCKET_NAME}'..."
+mc anonymous set none "${MINIO_CLIENT_NAME}/${BUCKET_NAME}"
+log_info "Bucket '${BUCKET_NAME}' access policy set to 'none' (private)."
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deployment and Configuration complete
+# ─────────────────────────────────────────────────────────────────────────────
 log_info "============================================="
-log_info "  Airflow deployment and configuration complete."
+log_info "  MinIO deployment and configuration complete."
 log_info "============================================="
-log_info "  Webserver  : http://localhost:8080"
-log_info "  Scheduler  : running"
-log_info "  Worker     : running (1 replica)"
-log_info "  Triggerer  : running"
-log_info "  Admin user : ${AIRFLOW_WWW_USERNAME}"
-log_info "  Connections: minio_default, postgres_default"
-log_info ""
-log_info "  Next step: run scripts/healthcheck.sh"
+log_info "  API      : ${MINIO_HOSTNAME}"
+log_info "  Console  : http://localhost:${MINIO_PORT_CONSOLE}"
+log_info "  Bucket   : ${BUCKET_NAME}"
+log_info "  Policy   : private (root credentials only)"
 log_info "============================================="

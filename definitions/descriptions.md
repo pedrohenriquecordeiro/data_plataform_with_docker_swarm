@@ -188,7 +188,7 @@
 
   - **Redis**
     - **Pros**: Sub-millisecond task state reads/writes, purpose-built for ephemeral state, minimal RAM (~30MB idle), `EXPIRE` TTL on results auto-cleans stale state
-    - **Cons**: Additional service to deploy, monitor, and back up; data lost on Redis restart without AOF/RDB persistence
+    - **Cons**: Additional service to deploy, monitor and back up; data lost on Redis restart without AOF/RDB persistence
 
   - **PostgreSQL (same Airflow metadata DB instance)**
     - **Pros**: No extra service — result backend reuses existing DB, simplifies architecture
@@ -466,7 +466,7 @@
     - **Cons**: Passwords stored in Airflow DB (Fernet-encrypted), no SSO, each user must be created manually, no 2FA support
 
   - **LDAP / Active Directory integration**
-    - **Pros**: Centralized identity — users, groups, and roles managed in existing org directory, account deactivation propagates automatically
+    - **Pros**: Centralized identity — users, groups and roles managed in existing org directory, account deactivation propagates automatically
     - **Cons**: LDAP server required (either existing corp LDAP or self-hosted OpenLDAP), LDAP connection string + bind DN config in `airflow.cfg`, TLS for LDAP (`ldaps://`) adds cert complexity
 
   - **OAuth2 / OIDC (Google Workspace, GitHub, Keycloak)**
@@ -481,7 +481,7 @@
 
   - **Environment variables in Docker Swarm stack**
     - **Pros**: Simplest possible — set `AIRFLOW_CONN_MINIO=...` in environment, Airflow reads it automatically via URI format
-    - **Cons**: Secrets visible in `docker inspect <container>`, in `docker service inspect`, and potentially in CI/CD logs — not secure for production credentials
+    - **Cons**: Secrets visible in `docker inspect <container>`, in `docker service inspect` and potentially in CI/CD logs — not secure for production credentials
 
   - **Airflow metastore (Variables + Connections via UI/CLI)**
     - **Pros**: Built-in, Fernet-encrypted at rest in DB, manageable via Airflow UI and `airflow connections` CLI, accessible to all workers via DB
@@ -531,7 +531,7 @@
 
   - **Custom images built from official base (`FROM apache/airflow:2.x.x`)**
     - **Pros**: Add custom providers, Python packages, certificates, OS packages while inheriting official image security baseline
-    - **Cons**: Custom Dockerfile must be maintained, rebuilt, and tested on upstream upgrades, image build pipeline required
+    - **Cons**: Custom Dockerfile must be maintained, rebuilt and tested on upstream upgrades, image build pipeline required
 
   - **Image scanning in CI (Trivy, Grype, or Snyk)**
     - **Pros**: CVEs caught before images are pushed to production registry, scannable at build time and periodically on registry images, integrates with GitHub Actions / GitLab CI
@@ -639,7 +639,7 @@
 ### MinIO server log verbosity
 
   - **Default INFO level**
-    - **Pros**: Balanced verbosity — startup, config, errors, and access attempts logged
+    - **Pros**: Balanced verbosity — startup, config, errors and access attempts logged
     - **Cons**: High-throughput deployments generate significant log volume at INFO level (~1GB/day under heavy load)
 
   - **ERROR only**
@@ -1128,7 +1128,7 @@
 ### DAG testing before deployment
 
   - **`airflow dags test <dag_id> <execution_date>` in CI**
-    - **Pros**: Runs DAG against real task code in an isolated environment, catches import errors, operator misconfiguration, and connection issues early
+    - **Pros**: Runs DAG against real task code in an isolated environment, catches import errors, operator misconfiguration and connection issues early
     - **Cons**: Requires Airflow + dependencies installed in CI environment, slow for DAGs with many tasks, cannot test against production data without real connections
 
   - **pytest unit tests on DAG structure (`dag.test_cycle()`, `dag.get_task()` assertions)**

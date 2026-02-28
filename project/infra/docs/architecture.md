@@ -198,7 +198,7 @@ The architecture is designed for single-node operation with a clear path to mult
 
 1. **Join new worker nodes:** `docker swarm join --token <WORKER_TOKEN> <MANAGER_IP>:2377`
 2. **Scale workers:** `docker service scale airflow_airflow-worker=N`
-3. **Migrate storage:** Replace bind-mount volumes with shared storage (NFS, GlusterFS) for DAGs, logs, and plugins
+3. **Migrate storage:** Replace bind-mount volumes with shared storage (NFS, GlusterFS) for DAGs, logs and plugins
 4. **MinIO expansion:** Migrate from SNSD to MNMD via `mc mirror` when additional drives/nodes are available
 
 > **See also:** `maintenance_guide.md` → "Scaling to Multi-Node" section for detailed procedures.
